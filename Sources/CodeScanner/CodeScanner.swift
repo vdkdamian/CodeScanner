@@ -35,8 +35,13 @@ public struct ScanResult {
     /// The type of code that was matched.
     public let type: AVMetadataObject.ObjectType
     
+    #if canImport(UIKit)
     /// The image of the code that was matched
     public let image: UIImage?
+    #else
+    /// The image of the code that was matched
+    public let image: NSImage?
+    #endif
   
     /// The corner coordinates of the scanned code.
     public let corners: [CGPoint]
@@ -57,6 +62,7 @@ public enum ScanMode {
     case manual
 }
 
+#if canImport(UIKit)
 /// A SwiftUI view that is able to scan barcodes, QR codes, and more, and send back what was found.
 /// To use, set `codeTypes` to be an array of things to scan for, e.g. `[.qr]`, and set `completion` to
 /// a closure that will be called when scanning has finished. This will be sent the string that was detected or a `ScanError`.
@@ -117,8 +123,72 @@ public struct CodeScannerView: UIViewControllerRepresentable {
     }
     
 }
+#else
+/// A SwiftUI view that is able to scan barcodes, QR codes, and more, and send back what was found.
+/// To use, set `codeTypes` to be an array of things to scan for, e.g. `[.qr]`, and set `completion` to
+/// a closure that will be called when scanning has finished. This will be sent the string that was detected or a `ScanError`.
+/// For testing inside the simulator, set the `simulatedData` property to some test data you want to send back.
+@available(macOS 13.0, *)
+public struct CodeScannerView: NSViewControllerRepresentable {
+    
+    public let codeTypes: [AVMetadataObject.ObjectType]
+    public let scanMode: ScanMode
+    public let manualSelect: Bool
+    public let scanInterval: Double
+    public let showViewfinder: Bool
+    public var simulatedData = ""
+    public var shouldVibrateOnSuccess: Bool
+    public var isTorchOn: Bool
+    public var isGalleryPresented: Binding<Bool>
+    public var videoCaptureDevice: AVCaptureDevice?
+    public var completion: (Result<ScanResult, ScanError>) -> Void
 
-@available(macCatalyst 14.0, *)
+    public init(
+        codeTypes: [AVMetadataObject.ObjectType],
+        scanMode: ScanMode = .once,
+        manualSelect: Bool = false,
+        scanInterval: Double = 2.0,
+        showViewfinder: Bool = false,
+        simulatedData: String = "",
+        shouldVibrateOnSuccess: Bool = true,
+        isTorchOn: Bool = false,
+        isGalleryPresented: Binding<Bool> = .constant(false),
+        videoCaptureDevice: AVCaptureDevice? = AVCaptureDevice.bestForVideo,
+        completion: @escaping (Result<ScanResult, ScanError>) -> Void
+    ) {
+        self.codeTypes = codeTypes
+        self.scanMode = scanMode
+        self.manualSelect = manualSelect
+        self.showViewfinder = showViewfinder
+        self.scanInterval = scanInterval
+        self.simulatedData = simulatedData
+        self.shouldVibrateOnSuccess = shouldVibrateOnSuccess
+        self.isTorchOn = isTorchOn
+        self.isGalleryPresented = isGalleryPresented
+        self.videoCaptureDevice = videoCaptureDevice
+        self.completion = completion
+    }
+    
+    
+    
+    public func makeNSViewController(context: Context) -> ScannerViewController {
+        return ScannerViewController(showViewfinder: showViewfinder, parentView: self)
+    }
+    
+    public func updateNSViewController(_ nsViewController: ScannerViewController, context: Context) {
+        nsViewController.parentView = self
+        nsViewController.updateViewController(
+            isTorchOn: isTorchOn,
+            isGalleryPresented: isGalleryPresented.wrappedValue,
+            isManualCapture: scanMode == .manual,
+            isManualSelect: manualSelect
+        )
+    }
+    
+}
+#endif
+
+@available(macCatalyst 14.0, macOS 13.0, *)
 struct CodeScannerView_Previews: PreviewProvider {
     static var previews: some View {
         CodeScannerView(codeTypes: [.qr]) { result in
